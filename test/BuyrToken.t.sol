@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../src/BuyrToken.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockOracle {
     function acceptOnToken(address token) external {
@@ -21,8 +22,12 @@ contract BuyrTokenTest is Test {
     address public user = address(0x2);
 
     function setUp() public {
-        vm.prank(owner);
-        token = new BuyrToken(owner);
+        BuyrToken impl = new BuyrToken();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(BuyrToken.initialize, (owner))
+        );
+        token = BuyrToken(address(proxy));
         oracle = new MockOracle();
     }
 
@@ -62,6 +67,21 @@ contract BuyrTokenTest is Test {
 
     function test_owner() public view {
         assertEq(token.owner(), owner);
+    }
+
+    // --- Cannot reinitialize ---
+
+    function test_cannotReinitialize() public {
+        vm.expectRevert();
+        token.initialize(user);
+    }
+
+    // --- Implementation cannot be initialized ---
+
+    function test_implementationCannotBeInitialized() public {
+        BuyrToken impl = new BuyrToken();
+        vm.expectRevert();
+        impl.initialize(user);
     }
 
     // --- setEmissionOracle ---
@@ -156,7 +176,6 @@ contract BuyrTokenTest is Test {
         token.setEmissionOracle(address(oracle));
         oracle.acceptOnToken(address(token));
 
-        // Even if somehow pendingEmissionOracle were set, locked check prevents
         vm.prank(address(oracle));
         vm.expectRevert(BuyrToken.NotPendingOracle.selector);
         token.acceptEmissionOracle();
@@ -181,7 +200,6 @@ contract BuyrTokenTest is Test {
     }
 
     function test_mint_revertOracleNotSet() public {
-        // emissionOracle is address(0), so msg.sender != emissionOracle for any real caller
         vm.prank(user);
         vm.expectRevert(BuyrToken.OnlyEmissionOracle.selector);
         token.mint(user, 1000 ether);
@@ -237,7 +255,6 @@ contract BuyrTokenTest is Test {
     // --- ERC20Permit ---
 
     function test_permit_domainSeparator() public view {
-        // Just verify DOMAIN_SEPARATOR is non-zero (EIP-2612)
         assertTrue(token.DOMAIN_SEPARATOR() != bytes32(0));
     }
 
@@ -252,5 +269,23 @@ contract BuyrTokenTest is Test {
         vm.prank(user);
         token.acceptOwnership();
         assertEq(token.owner(), user);
+    }
+
+    // --- UUPS Upgrade ---
+
+    function test_upgradeToAndCall_onlyOwner() public {
+        BuyrToken newImpl = new BuyrToken();
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
+        token.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_upgradeToAndCall_ownerCanUpgrade() public {
+        BuyrToken newImpl = new BuyrToken();
+        vm.prank(owner);
+        token.upgradeToAndCall(address(newImpl), "");
+        // State persists after upgrade
+        assertEq(token.name(), "Shulam Buyer Token");
+        assertEq(token.owner(), owner);
     }
 }

@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
 import "../src/SellrToken.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MockSellrOracle {
     function acceptOnToken(address token) external {
@@ -21,8 +22,12 @@ contract SellrTokenTest is Test {
     address public user = address(0x2);
 
     function setUp() public {
-        vm.prank(owner);
-        token = new SellrToken(owner);
+        SellrToken impl = new SellrToken();
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(impl),
+            abi.encodeCall(SellrToken.initialize, (owner))
+        );
+        token = SellrToken(address(proxy));
         oracle = new MockSellrOracle();
     }
 
@@ -62,6 +67,19 @@ contract SellrTokenTest is Test {
 
     function test_owner() public view {
         assertEq(token.owner(), owner);
+    }
+
+    // --- Cannot reinitialize ---
+
+    function test_cannotReinitialize() public {
+        vm.expectRevert();
+        token.initialize(user);
+    }
+
+    function test_implementationCannotBeInitialized() public {
+        SellrToken impl = new SellrToken();
+        vm.expectRevert();
+        impl.initialize(user);
     }
 
     // --- setEmissionOracle ---
@@ -219,7 +237,6 @@ contract SellrTokenTest is Test {
     // --- Different MAX_SUPPLY from BuyrToken ---
 
     function test_maxSupply_isDifferentFromBuyr() public view {
-        // SELLR: 1B, BUYR: 10B
         assertEq(token.MAX_SUPPLY(), 1_000_000_000 * 10 ** 18);
         assertTrue(token.MAX_SUPPLY() < 10_000_000_000 * 10 ** 18);
     }
@@ -241,5 +258,22 @@ contract SellrTokenTest is Test {
         vm.prank(user);
         token.acceptOwnership();
         assertEq(token.owner(), user);
+    }
+
+    // --- UUPS Upgrade ---
+
+    function test_upgradeToAndCall_onlyOwner() public {
+        SellrToken newImpl = new SellrToken();
+        vm.prank(user);
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", user));
+        token.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_upgradeToAndCall_ownerCanUpgrade() public {
+        SellrToken newImpl = new SellrToken();
+        vm.prank(owner);
+        token.upgradeToAndCall(address(newImpl), "");
+        assertEq(token.name(), "Shulam Seller Token");
+        assertEq(token.owner(), owner);
     }
 }

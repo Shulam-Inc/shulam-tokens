@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {ERC20BurnableUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20BurnableUpgradeable.sol";
+import {ERC20PermitUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title BuyrToken — $BUYR Demand Token (SHULAM-TOKEN-001)
-/// @notice ERC-20 with emission-controlled minting. 10B max supply.
+/// @notice UUPS-upgradeable ERC-20 with emission-controlled minting. 10B max supply.
 /// @dev Minting restricted to EmissionOracle only. Two-step oracle setting
 ///      mirrors Ownable2Step: owner proposes, oracle accepts. Once accepted,
 ///      the oracle is locked forever.
-contract BuyrToken is ERC20, ERC20Burnable, ERC20Permit, Ownable2Step {
+contract BuyrToken is ERC20Upgradeable, ERC20BurnableUpgradeable, ERC20PermitUpgradeable, Ownable2StepUpgradeable, UUPSUpgradeable {
     /// @notice Hard cap: 10 billion tokens with 18 decimals
     uint256 public constant MAX_SUPPLY = 10_000_000_000 * 10 ** 18;
 
@@ -34,12 +34,20 @@ contract BuyrToken is ERC20, ERC20Burnable, ERC20Permit, Ownable2Step {
     error MaxSupplyExceeded(uint256 requested, uint256 available);
     error NotPendingOracle();
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the token (replaces constructor for proxy pattern)
     /// @param initialOwner Initial owner (can later call setEmissionOracle)
-    constructor(address initialOwner)
-        ERC20("Shulam Buyer Token", "BUYR")
-        ERC20Permit("Shulam Buyer Token")
-        Ownable(initialOwner)
-    {}
+    function initialize(address initialOwner) external initializer {
+        __ERC20_init("Shulam Buyer Token", "BUYR");
+        __ERC20Burnable_init();
+        __ERC20Permit_init("Shulam Buyer Token");
+        __Ownable_init(initialOwner);
+        __Ownable2Step_init();
+    }
 
     /// @notice Propose an EmissionOracle address. Can be called multiple times
     ///         until the oracle is accepted and locked.
@@ -72,4 +80,7 @@ contract BuyrToken is ERC20, ERC20Burnable, ERC20Permit, Ownable2Step {
         if (amount > available) revert MaxSupplyExceeded(amount, available);
         _mint(to, amount);
     }
+
+    /// @notice Only the owner can authorize upgrades
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }
