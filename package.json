@@ -1,0 +1,21 @@
+{
+  "name": "shulam-tokens",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "deploy:sepolia": "npx tsx script/deploy-cdp.ts --network base-sepolia",
+    "deploy:mainnet": "npx tsx script/deploy-cdp.ts --network base",
+    "deploy:dry-run": "npx tsx script/deploy-cdp.ts --network base --dry-run"
+  },
+  "dependencies": {
+    "@coinbase/cdp-sdk": "^1.44.1",
+    "dotenv": "^16.4.7",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
