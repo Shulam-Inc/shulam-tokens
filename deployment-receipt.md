@@ -31,7 +31,7 @@ Both proxies' `owner()` returns this address. Deployer has zero post-deploy priv
 |----------|--------|
 | Sourcify | All 4 contracts: `exact_match` |
 | Blockscout | All 4 contracts: verified |
-| BaseScan | Auto-imports from Sourcify (pending) |
+| BaseScan | All 4 contracts: verified (via Etherscan API V2) |
 
 - BaseScan: `https://basescan.org/address/0x3cF16cEf57fE43e792bD161aA4fa3c44682640b2`
 - BaseScan: `https://basescan.org/address/0xCe0AC85Cc16C9570fDf52D8C97177CBc6ec7c698`
